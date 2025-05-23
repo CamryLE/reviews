@@ -1,10 +1,10 @@
 const express = require('express');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, query, where, getDocs } = require('firebase/firestore');
+const { getFirestore, collection, query, where, getDocs, addDoc, serverTimestamp } = require('firebase/firestore');
 const cors = require('cors');
 
 const app = express();
-app.use(cors({ origin: ['https://beyondpure.org', 'http://beyondpure.org'] })); // Restrict to your domain
+app.use(cors({ origin: ['https://beyondpure.org', 'http://beyondpure.org'] }));
 app.use(express.json());
 
 // Initialize Firebase
@@ -38,6 +38,49 @@ app.get('/reviews', async (req, res) => {
   } catch (error) {
     console.error('Error fetching reviews:', error);
     res.status(500).json({ error: 'Failed to fetch reviews', details: error.message });
+  }
+});
+
+// Endpoint to submit a review
+app.post('/submit-review', async (req, res) => {
+  try {
+    const { rating, title, name, email, text, productId } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !text || !productId || !rating) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate rating
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Prepare review data
+    const reviewData = {
+      rating: Number(rating),
+      title: title || '',
+      name: String(name),
+      email: String(email),
+      text: String(text),
+      timestamp: serverTimestamp(),
+      productId: String(productId),
+      verified: false,
+      photos: []
+    };
+
+    // Save to Firestore
+    await addDoc(collection(db, 'reviews'), reviewData);
+    res.status(200).json({ message: 'Review submitted successfully' });
+  } catch (error) {
+    console.error('Error submitting review:', error);
+    res.status(500).json({ error: 'Failed to submit review', details: error.message });
   }
 });
 
